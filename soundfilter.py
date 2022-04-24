@@ -2,14 +2,15 @@
 """
 
 """
+from numpy import abs, mean
+from numpy.fft import rfft
 import json
 import sounddevice as sd
-import numpy as np 
 import torch
-model = torch.jit.load('model_micro.jit')
-model.eval()
+model = torch.jit.load('model.jit')
+
 class SoundFilter(object):
-    def __init__(self, input_device='microphone', output_device='CABLE Input', active_level=3, active_count = 10, start_freq=0, end_freq=20, block_duration = 250):
+    def __init__(self, input_device='microphone', output_device='CABLE Input', active_level=3, active_count = 10, start_freq=0, end_freq=20, block_duration = 50):
         self._input_id, self._input_device = self.get_device(input_device, 'input')
         self._output_id, self._output_device = self.get_device(output_device, 'output')
 
@@ -41,6 +42,10 @@ class SoundFilter(object):
         self.samplerate = self._input_device['default_samplerate']
         self.block_size = int(self.samplerate * block_duration / 1000)
         self.stream = None
+
+        import pickle
+        with open("MLP_91.pickle", 'rb') as f:
+            self.clf = pickle.load(f)
 
         import atexit
         atexit.register(self.stop)
@@ -83,7 +88,17 @@ class SoundFilter(object):
         return self
 
     def activation_function(self, data):
-        if np.mean(data[self.start_freq:self.end_freq]) > self.active_level:
+        # data = data.reshape(1, -1)
+        # if self.clf.predict(data)[0]:
+        #     self.active_counter = self.active_count
+        #     return True
+        # elif self.active_counter > 0:
+        #     self.active_counter -= 1
+        #     return True
+        # else:
+        #     return False
+
+        if mean(data[self.start_freq:self.end_freq]) > self.active_level:
             self.active_counter = self.active_count
             return True
         elif self.active_counter > 0:
@@ -95,8 +110,9 @@ class SoundFilter(object):
     def callback(self, indata, outdata, frames, time, status):
         # if status:
         #     print(status)
-        data = np.fft.rfft(indata[:, 0])
-        data = np.abs(data)
+
+        data = rfft(indata[:, 0])
+        data = abs(data)
         
         if self.activation_function(data):
             outdata[:] = indata
@@ -104,7 +120,8 @@ class SoundFilter(object):
             outdata[:] = 0
 
     @staticmethod
-    def get_device(name = 'CABLE Input', kind = 'output', api = 0):       
+    def get_device(name = 'CABLE Input', kind = 'output', api = 0):    
+        print(name)   
         if isinstance(name, int):
             return name, sd.query_devices(name)
 
@@ -117,10 +134,13 @@ class SoundFilter(object):
                         sd.check_input_settings(device_id)
                     elif kind == 'output':
                         sd.check_output_settings(device_id)
+                    elif kind == 'playback':
+                        sd.check_output_settings(device_id)
                     else:
                         print('Invalid kind')
                         return None
                     matching_devices.append((device_id, devices[device_id]))
+                    print(matching_devices)
                 except:
                     pass
         
@@ -178,7 +198,7 @@ class SileroSoundFilter(SoundFilter):
         assert(self.block_size == 4000)
         self.stream = None
         self.active_counter = 0
-
+        
         import atexit
         atexit.register(self.stop)
 
@@ -242,8 +262,8 @@ if __name__ == "__main__":
     parser = parse_arguments()
     args = parser.parse_args()
 
-    #sf = SoundFilter(args.input_device, args.output_device, args.active_level, args.active_count, args.start, args.end, args.block_duration).start()
-    sf = SileroSoundFilter(args.input_device, args.output_device).start()
+    sf = SoundFilter(args.input_device, args.output_device, args.active_level, args.active_count, args.start, args.end, args.block_duration).start()
+    # sf = SileroSoundFilter(args.input_device, args.output_device).start()
     print('#' * 80)
     print('press Return to quit')
     print('#' * 80)

@@ -3,13 +3,15 @@ from PyQt5.QtCore import QSettings
 
 class Settings(dict):
     __ver__ = "0.0.1"
-    __company__ = "python_soundfilter"
-    __product__ = "python_soundfilter"
+    __company__ = "python_soundfilter_ML"
+    __product__ = "python_soundfilter_ML"
     __defaults = {
-        "input-api": 0,
-        "output-api": 0,
-        "input-device": "microphone", 
-        "output-device": "CABLE Input", 
+        "input-api": 1,
+        "output-api": 5,
+        "playback-api": 4,
+        "input-device": "Microphone", 
+        "output-device": "CABLE Input",
+        "playback-device": "Headphones",
         "block-duration": 50, 
         "active-level": 3.0, 
         "active-count": 10, 
