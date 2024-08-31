@@ -5,10 +5,12 @@
 from numpy import abs, mean
 from numpy.fft import rfft
 import json
+import pickle
 import sounddevice as sd
 
-class SoundFilter(object):
-    def __init__(self, input_device='microphone', output_device='CABLE Input', block_duration = 50, model_name="MLP_94"):
+class SoundFilter():
+    def __init__(self, input_device='microphone', output_device='CABLE Input', block_duration = 50):
+        self.model_name = None
         self._input_id, self._input_device = self.get_device(input_device, 'input')
         self._output_id, self._output_device = self.get_device(output_device, 'output')
 
@@ -35,10 +37,6 @@ class SoundFilter(object):
         self.samplerate = self._input_device['default_samplerate']
         self.block_size = int(self.samplerate * block_duration / 1000)
         self.stream = None
-
-        import pickle
-        with open(model_name+".pickle", 'rb') as f:
-            self.clf = pickle.load(f)
 
         import atexit
         atexit.register(self.stop)
@@ -70,6 +68,8 @@ class SoundFilter(object):
             self.start()
 
     def start(self):
+        with open(self.model_name+".pickle", 'rb') as f:
+            self.clf = pickle.load(f)
         self._new_stream()
         self.stream.start()
         return self
@@ -144,6 +144,7 @@ class SoundFilter(object):
 if __name__ == "__main__":
     import argparse
     from settings import settings
+
     def parse_arguments():
         def int_or_str(text):
             """Helper function for argument parsing."""
@@ -156,9 +157,6 @@ if __name__ == "__main__":
         parser.add_argument('-i', '--input-device', type=int_or_str, default = settings.get("input-device", 'microphone'), help='input device ID or substring')
         parser.add_argument('-o', '--output-device', type=int_or_str, default = settings.get("output-device", 'CABLE Input'), help='output device ID or substring')
         parser.add_argument('-b', '--block-duration', type=float, metavar='DURATION', default = settings.get("block-duration", 50), help='block size (default %(default)s milliseconds)')
-        args = parser.parse_args()
-        # print("Arguments loaded:")
-        # print(json.dumps(vars(args), indent = 4))
         return parser
         
     parser = parse_arguments()

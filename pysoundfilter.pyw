@@ -1,3 +1,4 @@
+from pathlib import Path
 import sounddevice
 import PyQt5.QtWidgets as qw
 from PyQt5.QtCore import pyqtSlot
@@ -134,15 +135,8 @@ class FilterWindow(qw.QMainWindow):
 
     @pyqtSlot()
     def select_model(self):
-        # file_dialog = qw.QFileDialog(self)
-        # file_dialog.setNameFilters(["Pickle files (*.pickle)",])
-        # file_dialog.selectNameFilter("Pickle file (*.pickle)")
-        # # show the dialog
-        # file_dialog.exec_()
-        filepath = qw.QFileDialog.getOpenFileName(self, 'Hey! Select a File', filter="Pickle files (*.pickle)")
-        print(filepath)
-        # filepath = qw.QFileDialog.getOpenFileName(self, 'Hey! Select a File')
-
+        filepath, _ = qw.QFileDialog.getOpenFileName(self, 'Select a trained MLP model', filter="Pickle files (*.pickle)")
+        self.filter.model_name = Path(filepath).stem
 
     def change_style(self, styleName):
         qw.QApplication.setStyle(qw.QStyleFactory.create(styleName))

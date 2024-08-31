@@ -40,7 +40,6 @@ class TrainerWindow(qw.QMainWindow):
         self.central_widget.setLayout(self.main_layout)
         self.setCentralWidget(self.central_widget)
 
-
     def add_widgets_input(self):
          # Add input APIs
         self.input_layout = qw.QVBoxLayout()
@@ -56,7 +55,7 @@ class TrainerWindow(qw.QMainWindow):
         self.set_input_api(self.input_apis.currentIndex())
 
         self.set_input_device(settings['input-device'])
-        self.input_devices.setCurrentText(self.sa.input_device)
+        self.input_devices.setCurrentText(settings['input-device'])
         self.input_devices.textActivated.connect(self.set_input_device)
 
         self.input_layout.addWidget(qw.QLabel("Device"))
@@ -80,7 +79,7 @@ class TrainerWindow(qw.QMainWindow):
         self.set_playback_api(self.playback_apis.currentIndex())
 
         self.set_playback_device(settings['playback-device'])
-        self.playback_devices.setCurrentText(self.sa.playback_device)
+        self.playback_devices.setCurrentText(settings['playback-device'])
         self.playback_devices.textActivated.connect(self.set_playback_device)
 
         self.playback_layout.addWidget(qw.QLabel("Device"))
@@ -93,16 +92,32 @@ class TrainerWindow(qw.QMainWindow):
         self.recording_layout = qw.QVBoxLayout()
         
         self.recording_label_1 = qw.QLabel(self)
-        self.recording_label_1.setText("<i>Press record then read the following text, pressing Finish when done:</i><br>That quick beige fox jumped in the air over each thin dog.<br>Look out, I shout, for he's foiled you again, creating chaos.")
-
+        self.recording_label_1.setText(
+            "<i>Click record then read the following text, click Finish when done:</i><br>That quick beige fox jumped in the air over each thin dog.<br>Look out, I shout, for he's foiled you again, creating chaos."
+            )
         self.recording_button_1 = qw.QPushButton('button_recording_1', self)
         self.recording_button_1.setObjectName("button_recording_1")
-        self.recording_button_1.setText("Record")
-        # self.recording_button_1.setIcon(qg.QIcon('record_img.png'))
-        self.recording_button_1.clicked.connect(lambda: self.toggle_recording("recording_1"))
-
+        self.recording_button_1.setText("RECORD")
+        self.recording_button_1.clicked.connect(lambda: self.toggle_recording("rec_talking"))
         self.recording_layout.addWidget(self.recording_label_1)
         self.recording_layout.addWidget(self.recording_button_1)
+
+        self.recording_label_2 = qw.QLabel(self)
+        self.recording_label_2.setText(
+            "<i>Click record then do not speak. Type, click the mouse, make any sounds that would normally occur. Then stay silent for atleast 10 seconds. Click Finish when done:</i>"
+            )
+        self.recording_button_2 = qw.QPushButton('button_recording_2', self)
+        self.recording_button_2.setObjectName("button_recording_2")
+        self.recording_button_2.setText("RECORD")
+        self.recording_button_2.clicked.connect(lambda: self.toggle_recording("rec_noise"))
+        self.recording_layout.addWidget(self.recording_label_2)
+        self.recording_layout.addWidget(self.recording_button_2)
+
+        self.playback_button = self.recording_button_1 = qw.QPushButton('button_playback', self)
+        self.playback_button.setObjectName("button_playback")
+        self.playback_button.setText("Playback last audio recording")
+        self.playback_button.clicked.connect(lambda: self.playback_recording())
+        self.recording_layout.addWidget(self.playback_button)
 
         self.recording_group_box = qw.QGroupBox("Recording")
         self.recording_group_box.setLayout(self.recording_layout)
@@ -117,6 +132,8 @@ class TrainerWindow(qw.QMainWindow):
         self.train_button.clicked.connect(self.train)
 
         self.ai_layout.addWidget(self.train_button)
+        self.ai_label = qw.QLabel(self)
+        self.ai_layout.addWidget(self.ai_label)
 
         self.ai_group_box = qw.QGroupBox("AI")
         self.ai_group_box.setLayout(self.ai_layout)
@@ -125,39 +142,28 @@ class TrainerWindow(qw.QMainWindow):
     def toggle_recording(self, ctx):
         button = qw.qApp.focusWidget()
         text = button.text()
-        if text == "Record":
-            button.setText("Finish")
+        if text == "RECORD":
             self.sa.set_record_path(ctx)
             self.sa.start_recording()
-            print("Starting Recording")
+            button.setIcon(qg.QIcon('assets/record_img.png'))
+            button.setText("FINISH")
         else:
-            button.setText("Record")
             self.sa.stop_recording()
-            print("Done Recording")
+            button.setIcon(qg.QIcon())
+            button.setText("RECORD")
 
-        # # button.setText("Recording")
-        # # print("AAAAAAAAAAAAAAAA", button.objectName())
-        # # # button.setIcon(qg.QIcon('record_img.png'))
-        # # self.sa.set_record_path(ctx)
-        # self.sa.start_recording()
-        # time.sleep(5)
-        # self.sa.stop_recording()
-        # # button.setText("Start Recording")
-        # # button.setIcon(qg.QIcon())
-        # print("Done Recording")
+    @pyqtSlot()
+    def playback_recording(self):
+        self.sa.playback_recording()
 
     @pyqtSlot()
     def train(self):
-        # df_noise = pd.read_csv("sample_typing.csv")
-        # df_talking = pd.read_csv("talking_4.csv")
-        
-        self.ai.load_data_talking("sample_talking")
-        self.ai.load_data_noise("sample_typing")
+        self.ai.load_data_talking("rec_talking")
+        self.ai.load_data_noise("rec_noise")
         self.ai.merge_datasets()
         self.ai.generate_features()
-
         self.ai.generate_voting()
-
+        self.ai_label.setText("Saving trained model: "+self.ai.name)
 
     def change_style(self, styleName):
         qw.QApplication.setStyle(qw.QStyleFactory.create(styleName))

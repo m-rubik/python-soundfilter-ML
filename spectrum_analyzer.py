@@ -131,14 +131,14 @@ class SpectrumAnalyser(object):
             self.datafile.close()
         print("Recording Stopped")
 
-        # TODO: Make this seperate function...
+    def playback_recording(self):
         # TODO: Blocking=True doesn't work properly...
         try:
-            import time
+            # import time
             print(self._playback_id, self._playback_device)
             sd.play(self.recording, self.samplerate, device=self._playback_id, blocking=False)
-            time.sleep(30)
-            sd.stop()
+            # time.sleep(30)
+            # sd.stop()
         except Exception as e:
             print(e)
 

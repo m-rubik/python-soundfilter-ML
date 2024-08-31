@@ -22,7 +22,6 @@ class AI():
         self.df_noise = None
 
     def load_data_talking(self, filename):
-        # p = Path(filename).with_suffix('.csv')
         if self.df_talking == None:
             self.df_talking = pd.read_csv(filename+".csv")
         else:
@@ -30,7 +29,6 @@ class AI():
             self.df_talking= pd.concat([self.df_talking, df], ignore_index=True)
 
     def load_data_noise(self, filename):
-        # p = Path(filename).with_suffix('.csv')
         if self.df_noise == None:
             self.df_noise = pd.read_csv(filename+".csv")
         else:
