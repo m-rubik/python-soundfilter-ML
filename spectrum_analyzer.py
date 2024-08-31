@@ -17,6 +17,33 @@ import numpy as np
 from soundfilter import SoundFilter
 from settings import settings
 
+from threading import Timer
+
+class RepeatedTimer(object):
+    def __init__(self, interval, function, *args, **kwargs):
+        self._timer     = None
+        self.interval   = interval
+        self.function   = function
+        self.args       = args
+        self.kwargs     = kwargs
+        self.is_running = False
+        self.start()
+
+    def _run(self):
+        self.is_running = False
+        self.start()
+        self.function(*self.args, **self.kwargs)
+
+    def start(self):
+        if not self.is_running:
+            self._timer = Timer(self.interval, self._run)
+            self._timer.start()
+            self.is_running = True
+
+    def stop(self):
+        self._timer.cancel()
+        self.is_running = False
+
 def int_or_str(text):
     """Helper function for argument parsing."""
     try:
@@ -31,11 +58,15 @@ class SpectrumAnalyser(object):
         self.block_duration = block_duration
         self.channel = channel
         self.plot_interval = plot_interval
-        self.record_path = record_path
+        if record_path != None:
+            self.record_path = pathlib.Path(record_path)
+        else:
+            self.record_path = record_path
         self.q = queue.Queue()
         self.datafile = None
         self.plot_date = None
         self.alpha = 0.25
+        self.rt = None
 
     def set_input(self, input_device, block_duration = 250, api = 'MME'):
         self._input_id, self._input_device = SoundFilter.get_device(input_device, 'input', api)
@@ -52,9 +83,6 @@ class SpectrumAnalyser(object):
         if not input_device:
             raise ValueError("Unable to find any input device for sound filter to function.")
 
-        # print("Input device info:")
-        # print(json.dumps(sd.query_devices(self._input_id), indent = 4))
-
         # Do information calculation and output information for user
         self.input_device_info = sd.query_devices(self.input_device, 'input')
         print('Using input device:', self.input_device, self.input_device_info)
@@ -63,51 +91,76 @@ class SpectrumAnalyser(object):
         self.block_size = math.ceil(self.samplerate * self.block_duration / 1000)
         self.freq = np.fft.rfftfreq(self.block_size, d=1./self.samplerate)
         self.fftlen = len(self.freq)
-        print('FFT spectrum with', self.fftlen, 'points of data corresponding to a range of', str(self.freq[1])+'Hz per point of data.')
-
-        if self.record_path:
-            try:
-                self.datafile = open(self.record_path.with_suffix('.csv'),'ab')
-                np.savetxt(self.datafile, self.freq[None,:], delimiter=',', fmt='%.4f')
-            except:
-                self.datafile = None
-        
         self.plot_data = np.zeros(self.fftlen)
+        print('FFT spectrum with', self.fftlen, 'points of data corresponding to a range of', str(self.freq[1])+'Hz per point of data.')
     
     def set_playback(self, playback_device, api = 'MME'):
         self._playback_id, self._playback_device = SoundFilter.get_device(playback_device, 'playback', api)
 
+    def set_record_path(self, record_path):
+        if record_path != None:
+            self.record_path = pathlib.Path(record_path)
+        else:
+            self.record_path = record_path
+        self.set_input(self.input_device)
+
     def start_recording(self, max_duration: float=120):
+        if self.record_path:
+            try:
+                self.datafile = open(self.record_path.with_suffix('.csv'),'wb')
+                np.savetxt(self.datafile, self.freq[None,:], delimiter=',', fmt='%.4f')
+                ## Need a thread that continuously services the queue
+                ## First argument is time in seconds between calls to update_datafile
+                self.rt = RepeatedTimer(0.01, self.update_datafile) # it auto-starts, no need of rt.start()
+            except Exception as e:
+                print(e)
+                self.datafile = None
         self.stream = sd.InputStream(device=self.input_device, blocksize=int(self.samplerate * self.block_duration / 1000),
             samplerate=self.samplerate, callback=self.audio_callback)
         self.recording = sd.rec(int(max_duration * self.samplerate), samplerate=self.samplerate, channels=2)
+        self.stream.start()
 
     def stop_recording(self):
+        self.stream.stop()
+        self.stream.close()
+        if self.rt != None:
+            self.rt.stop()
         sd.stop()
+        if self.datafile:
+            self.update_datafile()
+            self.datafile.close()
+        print("Recording Stopped")
+
+        # TODO: Make this seperate function...
+        # TODO: Blocking=True doesn't work properly...
+        try:
+            import time
+            print(self._playback_id, self._playback_device)
+            sd.play(self.recording, self.samplerate, device=self._playback_id, blocking=False)
+            time.sleep(30)
+            sd.stop()
+        except Exception as e:
+            print(e)
 
     def live_plot_and_capture(self):
         try:
-            stream = sd.InputStream(device=self.input_device, blocksize=int(self.samplerate * self.block_duration / 1000),
-                samplerate=self.samplerate, callback=self.audio_callback)
+            self.start_recording()
 
-            if self.plot_interval != 0:
-                fig, ax = plt.subplots()
-                self.lines = ax.plot(self.plot_data)
-                ax.axis((0, len(self.plot_data), 0, 1))
-                # ax.set_yticks([0])
-                ax.yaxis.grid(True)
-                # ax.tick_params(bottom=False, top=False, labelbottom=False, right=False, left=False, labelleft=False)
-                fig.tight_layout(pad=0)
+            fig, ax = plt.subplots()
+            self.lines = ax.plot(self.plot_data)
+            ax.axis((0, len(self.plot_data), 0, 1))
+            # ax.set_yticks([0])
+            ax.yaxis.grid(True)
+            # ax.tick_params(bottom=False, top=False, labelbottom=False, right=False, left=False, labelleft=False)
+            fig.tight_layout(pad=0)
 
-                ani = FuncAnimation(fig, self.update_plot, interval=self.plot_interval, blit=True)
-
-                with stream:
-                    plt.show()
-                pass
+            ani = FuncAnimation(fig, self.update_plot, interval=self.plot_interval, blit=True)
+            plt.show()
     
         except Exception as e:
             print(e)
         finally:
+            self.stop_recording()
             if self.datafile:
                 self.datafile.close()
             print("Capture Finished")
@@ -119,8 +172,20 @@ class SpectrumAnalyser(object):
         if not self.q.full():
             self.q.put(indata[:, self.channel])
 
+    def update_datafile(self):
+        try:
+            while not self.q.empty():
+                data = self.q.get()
+                data = np.fft.rfft(data)
+                data = np.abs(data)
+
+                np.savetxt(self.datafile, data[None,:], delimiter=',', fmt='%.4f')
+
+        except queue.Empty:
+            print("nothing to save")
+
     def update_plot(self, frame):
-        """This is called by matplotlib for each plot update.
+        """This is called by matplotlib for each plot update.s
 
         Typically, audio callbacks happen more frequently than plot updates,
         therefore the queue tends to contain multiple blocks of audio data.
@@ -130,7 +195,6 @@ class SpectrumAnalyser(object):
             data = self.q.get()
             data = np.fft.rfft(data)
             data = np.abs(data)
-            # print(data.size)
             self.plot_data = self.alpha*data+(1-self.alpha)*self.plot_data
 
             for line in self.lines:
@@ -170,17 +234,17 @@ if __name__ == "__main__":
     if args.channel < 0:
         parser.error('Channel must be greater than 0')
 
-    if args.record_path:
-        record_path = pathlib.Path(args.record_path)
-    else:
-        record_path = None
+    # if args.record_path:
+    #     record_path = pathlib.Path(args.record_path)
+    # else:
+    #     record_path = None
 
-    sa = SpectrumAnalyser(args.block_duration, args.channel, args.plot_interval, record_path)
+    sa = SpectrumAnalyser(args.block_duration, args.channel, args.plot_interval, args.record_path)
     sa.set_input(args.input_device)
     sa.set_playback(args.playback_device) # Not currently used
     if args.plot_interval != 0:
         sa.live_plot_and_capture()
     else:
-        sa.start_recording(max_duration=60)
+        sa.start_recording()
         input()
         sa.stop_recording()

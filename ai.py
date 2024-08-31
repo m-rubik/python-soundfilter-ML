@@ -1,6 +1,9 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
 import pickle
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
 from sklearn import metrics
 from sklearn.model_selection import cross_val_score, GridSearchCV
 from sklearn.neural_network import MLPClassifier
@@ -15,29 +18,41 @@ class AI():
 
     def __init__(self):
         self.name= "MLP"
+        self.df_talking = None
+        self.df_noise = None
 
-    def load_data(self):
-        df_noise = pd.read_csv("typing_2.csv")
-        df_talking = pd.read_csv("talking_4.csv")
+    def load_data_talking(self, filename):
+        # p = Path(filename).with_suffix('.csv')
+        if self.df_talking == None:
+            self.df_talking = pd.read_csv(filename+".csv")
+        else:
+            df = pd.read_csv(filename+".csv")
+            self.df_talking= pd.concat([self.df_talking, df], ignore_index=True)
 
-        # df_noise = df_noise.apply(lambda x: x/x.max(), axis=1)
-        # df_talking = df_talking.apply(lambda x: x/x.max(), axis=1)
+    def load_data_noise(self, filename):
+        # p = Path(filename).with_suffix('.csv')
+        if self.df_noise == None:
+            self.df_noise = pd.read_csv(filename+".csv")
+        else:
+            df = pd.read_csv(filename+".csv")
+            self.df_noise= pd.concat([self.df_noise, df], ignore_index=True)
 
-        df_noise['is_talking'] = 0
-        df_talking['is_talking'] = 1
-        self.df = df_noise.append(df_talking)
-        # print(df.head())
+    def merge_datasets(self):
+        self.df_talking['is_talking'] = 1
+        self.df_noise['is_talking'] = 0
+       
+        self.df = pd.concat([self.df_talking, self.df_noise], ignore_index=True)
 
-        self.df.to_csv("test.csv")
-        import numpy as np
+        self.df.to_csv("df_merged.csv")
+
+    def generate_features(self, test_fraction=0.2):
         d = np.isfinite(self.df)
-        d.to_csv("test_inf.csv")
-
+        d.to_csv("df_merged_inf.csv")
         y = self.df['is_talking']
         X = self.df.drop(columns=['is_talking'])
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2)
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=test_fraction)
 
-    def test_model(self, save_threshold=45):
+    def test_model(self, save_threshold=80):
         """
         Method for testing the performance of
         any given model.
@@ -45,20 +60,21 @@ class AI():
 
         print("Detailed classification report:")
         self.y_true, self.y_pred = self.y_test, self.clf.predict(self.X_test)
-        print(self.y_true)
-        print(self.y_pred)
+
+        print("Detailed classification report:")
         print(classification_report(self.y_true, self.y_pred))
+        
+        self.plot_confusion_matrix()
 
         self.confidence = metrics.r2_score(self.y_test, self.y_pred)
         print("R^2:", str(round(self.confidence*100, 2)) +
-                "%. (Ideally as close to 0% as possible)")
+                "%. (Ideally as close to 0 as possible)")
         # NOTE: THESE CAN ONLY BE INTEGERS. YOU CANNOT TEST AGAINST FLOATS
         self.accuracy = metrics.accuracy_score(self.y_test, self.y_pred)
         model_accuracy = round(self.accuracy*100, 2)
         print("Accuracy:", str(model_accuracy) +
-                "%. (Ideally as close to 100% as possible)")
-        self.confusion_matrix = metrics.confusion_matrix(
-            self.y_test, self.y_pred)
+                "%. (Ideally as close to 100 as possible)")
+        self.confusion_matrix = metrics.confusion_matrix(self.y_test, self.y_pred)
 
         # testIndex = self.df.shape[0]-len(self.y_pred)
         # test_df = self.df.reset_index()
@@ -75,6 +91,18 @@ class AI():
             # export_model(self)
             model_file = self.name+".pickle"
             self.save_model(model_file, self.clf)
+
+    def plot_confusion_matrix(self):
+        cf_matrix = metrics.confusion_matrix(self.y_true, self.y_pred)
+        ax = sns.heatmap(cf_matrix, annot=True, cmap='Blues')
+        ax.set_title('Confusion Matrix\n\n');
+        ax.set_xlabel('\nPredicted Values')
+        ax.set_ylabel('Actual Values ');
+        ## Ticket labels - List must be in alphabetical order
+        ax.xaxis.set_ticklabels(['False','True'])
+        ax.yaxis.set_ticklabels(['False','True'])
+        ## Display the visualization of the Confusion Matrix.
+        plt.show()
 
     def generate_voting(self):
         """
@@ -192,11 +220,19 @@ class AI():
         model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['sparse_categorical_accuracy'])
         model.summary()
 
+if __name__ == "__main__":
+    a = AI()
+    a.load_data_talking("sample_talking")
+    a.load_data_noise("sample_typing")
+    a.merge_datasets()
 
-a = AI()
-a.load_data()
-a.generate_voting()
-# a.generate_mlp()
-# a.import_model("Test.pickle")
-# a.test_model()
+    ## To make a new model
+    a.generate_features(0.2)
+    a.generate_voting()
+    # a.generate_mlp()
+
+    # ##  To test an existing model
+    # a.generate_features(0.8)
+    # a.import_model("MLP_99.pickle")
+    # a.test_model()
 

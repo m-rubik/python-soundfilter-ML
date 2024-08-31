@@ -1,5 +1,6 @@
 import sounddevice
 import PyQt5.QtWidgets as qw
+from PyQt5.QtCore import pyqtSlot
 from soundfilter import SoundFilter
 from settings import settings
 
@@ -94,6 +95,12 @@ class FilterWindow(qw.QMainWindow):
         self.output_group_box = qw.QGroupBox("Outputs")
         self.output_group_box.setLayout(output_layout)
 
+        # Add model selector
+        model_layout = qw.QHBoxLayout()
+        model_button = qw.QPushButton("Select Model")
+        model_button.clicked.connect(self.select_model)
+        model_layout.addWidget(model_button)
+
         # Add start stop buttons
         bottom_layout = qw.QHBoxLayout()
         start_button = qw.QPushButton("Start")
@@ -109,7 +116,8 @@ class FilterWindow(qw.QMainWindow):
         # main_layout.addLayout(config_layout, 1, 0, 1, 3)
         main_layout.addWidget(self.input_group_box, 2, 0)
         main_layout.addWidget(self.output_group_box, 2, 1)
-        main_layout.addLayout(bottom_layout, 3, 0, 1, 3)
+        main_layout.addLayout(model_layout, 3, 0, 1, 3)
+        main_layout.addLayout(bottom_layout, 4, 0, 1, 4)
         main_layout.setRowStretch(1, 1)
         main_layout.setRowStretch(2, 1)
         main_layout.setColumnStretch(0, 1)
@@ -123,6 +131,18 @@ class FilterWindow(qw.QMainWindow):
 
         self.setWindowTitle("PySoundFilter")
         self.change_style('Windows')
+
+    @pyqtSlot()
+    def select_model(self):
+        # file_dialog = qw.QFileDialog(self)
+        # file_dialog.setNameFilters(["Pickle files (*.pickle)",])
+        # file_dialog.selectNameFilter("Pickle file (*.pickle)")
+        # # show the dialog
+        # file_dialog.exec_()
+        filepath = qw.QFileDialog.getOpenFileName(self, 'Hey! Select a File', filter="Pickle files (*.pickle)")
+        print(filepath)
+        # filepath = qw.QFileDialog.getOpenFileName(self, 'Hey! Select a File')
+
 
     def change_style(self, styleName):
         qw.QApplication.setStyle(qw.QStyleFactory.create(styleName))
