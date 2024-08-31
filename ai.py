@@ -46,8 +46,8 @@ class AI():
     def generate_features(self, test_fraction=0.2):
         d = np.isfinite(self.df)
         d.to_csv("df_merged_inf.csv")
-        y = self.df['is_talking']
-        X = self.df.drop(columns=['is_talking'])
+        y = self.df['is_talking'].values
+        X = self.df.drop(columns=['is_talking']).values
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=test_fraction)
 
     def test_model(self, save_threshold=80):

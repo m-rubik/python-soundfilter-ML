@@ -45,7 +45,7 @@ class SoundFilter():
         if self.stream:
             self.stream.stop()
             self.stream = None
-        self.stream = sd.Stream(device=(self._input_id, self._output_id), samplerate=self.samplerate, blocksize=self.block_size, callback=self.callback)
+        self.stream = sd.Stream(device=(self._input_id, self._output_id), channels=2, samplerate=self.samplerate, blocksize=self.block_size, callback=self.callback)
 
     @property
     def input(self):
@@ -90,7 +90,6 @@ class SoundFilter():
     def callback(self, indata, outdata, frames, time, status):
         data = rfft(indata[:, 0])
         data = abs(data)
-        
         if self.activation_function(data):
             outdata[:] = indata
         else:
